@@ -1,8 +1,7 @@
-import React from 'react';
+import { useMemo, useEffect } from 'react';
 import { 
   Code, 
   Folder, 
-  Tag, 
   Star, 
   Clock, 
   Plus,
@@ -12,9 +11,13 @@ import {
   SortDesc
 } from 'lucide-react';
 import { useSnippetStore } from '../../store/snippetStore';
+import { useFavoritesStore } from '../../store/favoritesStore';
+import { useAuthStore } from '../../store/authStore';
 
 export const Sidebar = () => {
+  const { user } = useAuthStore();
   const {
+    snippets,
     categories,
     collections,
     viewMode,
@@ -28,15 +31,119 @@ export const Sidebar = () => {
     setSelectedCollection,
   } = useSnippetStore();
 
-  const navigationItems = [
-    { icon: Code, label: 'All Snippets', id: 'all', count: 0 },
-    { icon: Star, label: 'Favorites', id: 'favorites', count: 0 },
-    { icon: Clock, label: 'Recent', id: 'recent', count: 0 },
-  ];
+  const { favorites, fetchFavorites, isLoading: favoritesLoading } = useFavoritesStore();
+
+  // Initialize favorites when user is available
+  useEffect(() => {
+    if (user && !favoritesLoading && favorites.length === 0) {
+      fetchFavorites(user.id);
+    }
+  }, [user, fetchFavorites, favoritesLoading, favorites.length]);
+
+  // Calculate counts dynamically using useMemo for performance
+  const navigationCounts = useMemo(() => {
+    if (!snippets || !Array.isArray(snippets)) {
+      return { all: 0, favorites: 0, recent: 0 };
+    }
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    return {
+      all: snippets.length,
+      favorites: favorites.length, // Use favorites from favorites store
+      recent: snippets.filter(snippet => {
+        const updateDate = new Date(snippet.updated_at || snippet.created_at);
+        return updateDate > sevenDaysAgo;
+      }).length,
+    };
+  }, [snippets, favorites.length]);
+
+  // Calculate category counts
+  const categoryCounts = useMemo(() => {
+    if (!snippets || !Array.isArray(snippets)) return {};
+    
+    const counts: Record<string, number> = {};
+    snippets.forEach(snippet => {
+      if (snippet.category_id) {
+        counts[snippet.category_id] = (counts[snippet.category_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [snippets]);
+
+  // Calculate collection counts
+  const collectionCounts = useMemo(() => {
+    if (!snippets || !Array.isArray(snippets)) return {};
+    
+    const counts: Record<string, number> = {};
+    snippets.forEach(snippet => {
+      if (snippet.collection_id) {
+        counts[snippet.collection_id] = (counts[snippet.collection_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [snippets]);
+
+  // Update navigation items to use dynamic counts
+  const navigationItems = useMemo(() => [
+    { 
+      icon: Code, 
+      label: 'All Snippets', 
+      id: 'all', 
+      count: navigationCounts.all,
+      onClick: () => {
+        setSelectedCategory(null);
+        setSelectedCollection(null);
+      }
+    },
+    { 
+      icon: Star, 
+      label: 'Favorites', 
+      id: 'favorites', 
+      count: navigationCounts.favorites,
+      onClick: () => {
+        // Set a special filter for favorites
+        setSelectedCategory('favorites');
+        setSelectedCollection(null);
+      }
+    },
+    { 
+      icon: Clock, 
+      label: 'Recent', 
+      id: 'recent', 
+      count: navigationCounts.recent,
+      onClick: () => {
+        // Set a special filter for recent
+        setSelectedCategory('recent');
+        setSelectedCollection(null);
+      }
+    },
+  ], [navigationCounts, setSelectedCategory, setSelectedCollection]);
 
   const handleSortChange = (newSortBy: typeof sortBy) => {
     const newOrder = sortBy === newSortBy && sortOrder === 'desc' ? 'asc' : 'desc';
     setSorting(newSortBy, newOrder);
+  };
+
+  const handleCategoryClick = (categoryId: string) => {
+    // Toggle category selection
+    if (selectedCategory === categoryId) {
+      setSelectedCategory(null);
+    } else {
+      setSelectedCategory(categoryId);
+      setSelectedCollection(null); // Clear collection when selecting category
+    }
+  };
+
+  const handleCollectionClick = (collectionId: string) => {
+    // Toggle collection selection
+    if (selectedCollection === collectionId) {
+      setSelectedCollection(null);
+    } else {
+      setSelectedCollection(collectionId);
+      setSelectedCategory(null); // Clear category when selecting collection
+    }
   };
 
   return (
@@ -50,16 +157,34 @@ export const Sidebar = () => {
           <nav className="space-y-1">
             {navigationItems.map((item) => {
               const Icon = item.icon;
+              const isActive = 
+                (item.id === 'all' && !selectedCategory && !selectedCollection) ||
+                (item.id === 'favorites' && selectedCategory === 'favorites') ||
+                (item.id === 'recent' && selectedCategory === 'recent');
+              
               return (
                 <button
                   key={item.id}
-                  className="w-full flex items-center justify-between px-3 py-2 text-theme-secondary rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors duration-200 group"
+                  onClick={item.onClick}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors duration-200 group ${
+                    isActive
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                      : 'text-theme-secondary hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
+                  }`}
                 >
                   <div className="flex items-center space-x-3">
-                    <Icon className="h-4 w-4 text-theme-tertiary group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors duration-200" />
+                    <Icon className={`h-4 w-4 transition-colors duration-200 ${
+                      isActive 
+                        ? 'text-indigo-500 dark:text-indigo-400' 
+                        : 'text-theme-tertiary group-hover:text-indigo-500 dark:group-hover:text-indigo-400'
+                    }`} />
                     <span className="text-sm font-medium">{item.label}</span>
                   </div>
-                  <span className="text-xs text-theme-tertiary bg-gray-100/50 dark:bg-gray-800/50 px-2 py-1 rounded-full">
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    isActive
+                      ? 'bg-indigo-100 dark:bg-indigo-800/50 text-indigo-600 dark:text-indigo-400'
+                      : 'text-theme-tertiary bg-gray-100/50 dark:bg-gray-800/50'
+                  }`}>
                     {item.count}
                   </span>
                 </button>
@@ -144,27 +269,39 @@ export const Sidebar = () => {
             </button>
           </div>
           <div className="space-y-1">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(
-                  selectedCategory === category.id ? null : category.id
-                )}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors duration-200 ${
-                  selectedCategory === category.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                    : 'text-theme-secondary hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
-                }`}
-              >
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: category.color }}
-                />
-                <span className="text-sm font-medium flex-1 text-left">
-                  {category.name}
-                </span>
-              </button>
-            ))}
+            {categories.map((category) => {
+              const count = categoryCounts[category.id] || 0;
+              const isSelected = selectedCategory === category.id;
+              
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => handleCategoryClick(category.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors duration-200 ${
+                    isSelected
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                      : 'text-theme-secondary hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: category.color }}
+                    />
+                    <span className="text-sm font-medium flex-1 text-left">
+                      {category.name}
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    isSelected
+                      ? 'bg-indigo-100 dark:bg-indigo-800/50 text-indigo-600 dark:text-indigo-400'
+                      : 'text-theme-tertiary bg-gray-100/50 dark:bg-gray-800/50'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -179,27 +316,41 @@ export const Sidebar = () => {
             </button>
           </div>
           <div className="space-y-1">
-            {collections.slice(0, 5).map((collection) => (
-              <button
-                key={collection.id}
-                onClick={() => setSelectedCollection(
-                  selectedCollection === collection.id ? null : collection.id
-                )}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors duration-200 ${
-                  selectedCollection === collection.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                    : 'text-theme-secondary hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Folder className="h-4 w-4 text-theme-tertiary" />
-                  <span className="text-sm font-medium">{collection.name}</span>
-                </div>
-                <span className="text-xs text-theme-tertiary">
-                  {collection.snippets_count || 0}
-                </span>
+            {collections.slice(0, 5).map((collection) => {
+              const count = collectionCounts[collection.id] || 0;
+              const isSelected = selectedCollection === collection.id;
+              
+              return (
+                <button
+                  key={collection.id}
+                  onClick={() => handleCollectionClick(collection.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors duration-200 ${
+                    isSelected
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                      : 'text-theme-secondary hover:bg-gray-50/50 dark:hover:bg-gray-800/50'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Folder className={`h-4 w-4 ${
+                      isSelected ? 'text-indigo-500 dark:text-indigo-400' : 'text-theme-tertiary'
+                    }`} />
+                    <span className="text-sm font-medium">{collection.name}</span>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    isSelected
+                      ? 'bg-indigo-100 dark:bg-indigo-800/50 text-indigo-600 dark:text-indigo-400'
+                      : 'text-theme-tertiary bg-gray-100/50 dark:bg-gray-800/50'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+            {collections.length > 5 && (
+              <button className="w-full text-left px-3 py-2 text-xs text-theme-tertiary hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors duration-200">
+                +{collections.length - 5} more collections
               </button>
-            ))}
+            )}
           </div>
         </div>
       </div>

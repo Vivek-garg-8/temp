@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSnippetStore } from '../../store/snippetStore';
 import { SnippetCard } from './SnippetCard';
 import { SnippetModal } from './SnippetModal';
@@ -17,6 +17,7 @@ export const SnippetList = () => {
     sortOrder,
     fetchSnippets,
     deleteSnippet,
+    toggleFavorite, // Add this
   } = useSnippetStore();
 
   const [showSnippetModal, setShowSnippetModal] = useState(false);
@@ -36,7 +37,7 @@ export const SnippetList = () => {
           snippet.title.toLowerCase().includes(query) ||
           snippet.description?.toLowerCase().includes(query) ||
           snippet.language.toLowerCase().includes(query) ||
-          snippet.tags.some(tag => tag.toLowerCase().includes(query))
+          snippet.tags?.some(tag => tag.toLowerCase().includes(query))
         );
       }
       return true;
@@ -64,7 +65,7 @@ export const SnippetList = () => {
         case 'language':
           return a.language.localeCompare(b.language) * multiplier;
         case 'favorites_count':
-          return (a.favorites_count - b.favorites_count) * multiplier;
+          return ((a.favorites_count || 0) - (b.favorites_count || 0)) * multiplier;
         case 'created_at':
           return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * multiplier;
         case 'updated_at':
@@ -80,13 +81,29 @@ export const SnippetList = () => {
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this snippet?')) {
-      await deleteSnippet(id);
+      try {
+        const result = await deleteSnippet(id);
+        if (result.error) {
+          console.error('Error deleting snippet:', result.error);
+          // You could add a toast notification here
+        }
+      } catch (error) {
+        console.error('Failed to delete snippet:', error);
+      }
     }
   };
 
-  const handleShare = (snippet: Snippet) => {
-    // TODO: Implement share functionality
-    console.log('Share snippet:', snippet);
+  // Add the toggle favorite handler
+  const handleToggleFavorite = async (id: string, isFavorite: boolean) => {
+    try {
+      const result = await toggleFavorite(id, isFavorite);
+      if (result.error) {
+        console.error('Error toggling favorite:', result.error);
+        // You could add a toast notification here
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
   };
 
   const handleCloseModal = () => {
@@ -160,7 +177,7 @@ export const SnippetList = () => {
             viewMode={viewMode}
             onEdit={handleEdit}
             onDelete={handleDelete}
-            onShare={handleShare}
+            onToggleFavorite={handleToggleFavorite} 
           />
         ))}
       </div>

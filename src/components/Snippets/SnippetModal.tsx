@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Code, Tag, Folder, Eye, EyeOff, Save } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { X, Code, Tag, Save } from 'lucide-react';
 import { useSnippetStore } from '../../store/snippetStore';
 import { useAuthStore } from '../../store/authStore';
 import { Snippet } from '../../types';
@@ -27,132 +27,198 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
   const { user } = useAuthStore();
   const { categories, collections, createSnippet, updateSnippet } = useSnippetStore();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    content: '',
-    language: 'javascript',
-    category_id: '',
-    collection_id: '',
-    is_public: false,
-    tags: [] as string[],
-  });
+  const [error, setError] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
 
-  useEffect(() => {
+  // Simplified initial form data
+  const initialFormData = useMemo(() => {
     if (snippet && mode === 'edit') {
-      setFormData({
-        title: snippet.title,
+      return {
+        title: snippet.title || '',
         description: snippet.description || '',
-        content: snippet.content,
-        language: snippet.language,
+        content: snippet.content || '',
+        language: snippet.language || 'javascript',
         category_id: snippet.category_id || '',
         collection_id: snippet.collection_id || '',
-        is_public: snippet.is_public,
-        tags: snippet.tags || [],
-      });
-    } else {
-      setFormData({
-        title: '',
-        description: '',
-        content: '',
-        language: 'javascript',
-        category_id: '',
-        collection_id: '',
-        is_public: false,
-        tags: [],
-      });
-    }
-  }, [snippet, mode, isOpen]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    setLoading(true);
-    try {
-      const snippetData = {
-        ...formData,
-        user_id: user.id,
-        category_id: formData.category_id || null,
-        collection_id: formData.collection_id || null,
+        is_public: snippet.is_public || false,
+        tags: Array.isArray(snippet.tags) ? snippet.tags : [],
       };
+    }
+    return {
+      title: '',
+      description: '',
+      content: '',
+      language: 'javascript',
+      category_id: '',
+      collection_id: '',
+      is_public: false,
+      tags: [],
+    };
+  }, [snippet, mode]);
 
-      if (mode === 'create') {
-        const { error } = await createSnippet(snippetData);
-        if (error) throw error;
-      } else if (snippet) {
-        const { error } = await updateSnippet(snippet.id, snippetData);
-        if (error) throw error;
+  const [formData, setFormData] = useState(initialFormData);
+
+  // Update form data only when necessary
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(initialFormData);
+      setError(null);
+      setTagInput('');
+    }
+  }, [initialFormData, isOpen]);
+
+  // Memoize options to prevent recreation
+  const languageOptions = useMemo(() => 
+    PROGRAMMING_LANGUAGES.map(lang => (
+      <option key={lang} value={lang}>
+        {lang.charAt(0).toUpperCase() + lang.slice(1)}
+      </option>
+    )), []
+  );
+
+  const categoryOptions = useMemo(() => 
+    categories.map(category => (
+      <option key={category.id} value={category.id}>
+        {category.name}
+      </option>
+    )), [categories]
+  );
+
+  const collectionOptions = useMemo(() => 
+    collections.map(collection => (
+      <option key={collection.id} value={collection.id}>
+        {collection.name}
+      </option>
+    )), [collections]
+  );
+
+  // Optimized submit handler
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || loading) return;
+
+    console.log('Starting submit...', formData);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      if (!formData.title.trim() || !formData.content.trim()) {
+        throw new Error('Title and content are required');
       }
 
+      const snippetData = {
+        title: formData.title.trim(),
+        description: formData.description.trim() || null,
+        content: formData.content.trim(),
+        language: formData.language,
+        category_id: formData.category_id || null,
+        collection_id: formData.collection_id || null,
+        is_public: formData.is_public,
+        tags: formData.tags,
+        user_id: user.id,
+      };
+
+      console.log('Submitting data:', snippetData);
+
+      let result;
+      const startTime = performance.now();
+      
+      if (mode === 'create') {
+        result = await createSnippet(snippetData);
+      } else if (snippet) {
+        result = await updateSnippet(snippet.id, snippetData);
+      }
+
+      const endTime = performance.now();
+      console.log(`Operation took ${endTime - startTime} milliseconds`);
+
+      if (result?.error) {
+        console.error('Save error:', result.error);
+        throw new Error(result.error.message || 'Failed to save snippet');
+      }
+
+      console.log('Save successful, closing modal');
       onClose();
     } catch (error) {
-      console.error('Error saving snippet:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save snippet';
+      console.error('Submit error:', error);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [formData, user, loading, mode, snippet, createSnippet, updateSnippet, onClose]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  // Optimized change handler
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
+    const finalValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+      [name]: finalValue,
     }));
-  };
+  }, []);
 
-  const addTag = () => {
-    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+  // Tag management
+  const addTag = useCallback(() => {
+    const trimmedTag = tagInput.trim();
+    if (trimmedTag && !formData.tags.includes(trimmedTag)) {
       setFormData(prev => ({
         ...prev,
-        tags: [...prev.tags, tagInput.trim()],
+        tags: [...prev.tags, trimmedTag],
       }));
       setTagInput('');
     }
-  };
+  }, [tagInput, formData.tags]);
 
-  const removeTag = (tagToRemove: string) => {
+  const removeTag = useCallback((tagToRemove: string) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.filter(tag => tag !== tagToRemove),
     }));
-  };
+  }, []);
 
-  const handleTagInputKeyPress = (e: React.KeyboardEvent) => {
+  const handleTagInputKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addTag();
     }
-  };
+  }, [addTag]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200/50 dark:border-gray-700/50">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
               <Code className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                 {mode === 'create' ? 'Create New Snippet' : 'Edit Snippet'}
               </h2>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 {mode === 'create' ? 'Add a new code snippet to your collection' : 'Update your code snippet'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 rounded-lg transition-colors duration-200"
+            className="p-2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-100 hover:bg-gray-100/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors duration-200"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mx-6 mt-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 rounded-lg">
+            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -161,7 +227,7 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
             <div className="space-y-6">
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Title *
                 </label>
                 <input
@@ -170,14 +236,14 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                   value={formData.title}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="Enter snippet title"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Description
                 </label>
                 <textarea
@@ -185,14 +251,14 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                   value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 resize-none"
+                  className="w-full px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 resize-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="Describe what this snippet does"
                 />
               </div>
 
               {/* Language */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Programming Language *
                 </label>
                 <select
@@ -200,59 +266,47 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                   value={formData.language}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 text-gray-900 dark:text-gray-100"
                 >
-                  {PROGRAMMING_LANGUAGES.map(lang => (
-                    <option key={lang} value={lang}>
-                      {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                    </option>
-                  ))}
+                  {languageOptions}
                 </select>
               </div>
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Category
                 </label>
                 <select
                   name="category_id"
                   value={formData.category_id}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 text-gray-900 dark:text-gray-100"
                 >
                   <option value="">No category</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
+                  {categoryOptions}
                 </select>
               </div>
 
               {/* Collection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Collection
                 </label>
                 <select
                   name="collection_id"
                   value={formData.collection_id}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200"
+                  className="w-full px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 text-gray-900 dark:text-gray-100"
                 >
                   <option value="">No collection</option>
-                  {collections.map(collection => (
-                    <option key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </option>
-                  ))}
+                  {collectionOptions}
                 </select>
               </div>
 
               {/* Tags */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Tags
                 </label>
                 <div className="space-y-3">
@@ -262,13 +316,13 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyPress={handleTagInputKeyPress}
-                      className="flex-1 px-4 py-2 bg-gray-50/50 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200"
+                      className="flex-1 px-4 py-2 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                       placeholder="Add a tag"
                     />
                     <button
                       type="button"
                       onClick={addTag}
-                      className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors duration-200"
+                      className="px-4 py-2 bg-indigo-500 dark:bg-indigo-600 text-white rounded-lg hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-colors duration-200"
                     >
                       <Tag className="h-4 w-4" />
                     </button>
@@ -278,13 +332,13 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                       {formData.tags.map((tag, index) => (
                         <span
                           key={index}
-                          className="inline-flex items-center space-x-1 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-sm border border-indigo-200"
+                          className="inline-flex items-center space-x-1 px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-sm border border-indigo-200 dark:border-indigo-700/50"
                         >
                           <span>#{tag}</span>
                           <button
                             type="button"
                             onClick={() => removeTag(tag)}
-                            className="text-indigo-400 hover:text-indigo-600 transition-colors duration-200"
+                            className="text-indigo-400 dark:text-indigo-300 hover:text-indigo-600 dark:hover:text-indigo-200 transition-colors duration-200"
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -294,37 +348,11 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                   )}
                 </div>
               </div>
-
-              {/* Visibility */}
-              <div>
-                <label className="flex items-center space-x-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="is_public"
-                    checked={formData.is_public}
-                    onChange={handleChange}
-                    className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
-                  />
-                  <div className="flex items-center space-x-2">
-                    {formData.is_public ? (
-                      <Eye className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    )}
-                    <span className="text-sm font-medium text-gray-700">
-                      Make this snippet public
-                    </span>
-                  </div>
-                </label>
-                <p className="text-xs text-gray-500 mt-1 ml-7">
-                  Public snippets can be viewed by other users
-                </p>
-              </div>
             </div>
 
             {/* Right Column - Code Content */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Code Content *
               </label>
               <textarea
@@ -333,18 +361,19 @@ export const SnippetModal: React.FC<SnippetModalProps> = ({
                 onChange={handleChange}
                 required
                 rows={20}
-                className="w-full px-4 py-3 bg-gray-900 text-gray-100 border border-gray-200/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 font-mono text-sm resize-none"
+                className="w-full px-4 py-3 bg-gray-900 dark:bg-gray-950 text-gray-100 border border-gray-200/50 dark:border-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 dark:focus:border-indigo-400/50 transition-all duration-200 font-mono text-sm resize-none placeholder-gray-400"
                 placeholder="Paste your code here..."
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200/50">
+          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200/50 dark:border-gray-700/50">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100/50 rounded-lg transition-colors duration-200"
+              disabled={loading}
+              className="px-6 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 hover:bg-gray-100/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors duration-200 disabled:opacity-50"
             >
               Cancel
             </button>

@@ -28,6 +28,22 @@ export interface Collection {
   snippets_count?: number;
 }
 
+export interface Favorite {
+  id: string;
+  user_id: string;
+  snippet_id: string;
+  created_at: string;
+  snippet?: {
+    id: string;
+    title: string;
+    language: string;
+    content: string;
+    description?: string;
+    tags?: string[];
+  };
+}
+
+
 export interface Snippet {
   id: string;
   title: string;
@@ -46,6 +62,7 @@ export interface Snippet {
   category?: Category;
   collection?: Collection;
   user?: User;
+  is_favorite?: boolean;
 }
 
 export interface ShareLink {

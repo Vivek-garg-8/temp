@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sun, Moon, Monitor, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 export const ThemeToggle = () => {
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { theme,  setTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   const themes = [
