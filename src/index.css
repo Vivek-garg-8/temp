@@ -1,3 +1,205 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* CSS Variables for Theme Colors */
+:root {
+  /* Light Theme Colors */
+  --color-background: 255 255 255;
+  --color-background-secondary: 249 250 251;
+  --color-background-tertiary: 243 244 246;
+  --color-surface: 255 255 255;
+  --color-surface-secondary: 248 250 252;
+  --color-border: 229 231 235;
+  --color-border-secondary: 209 213 219;
+  --color-text-primary: 17 24 39;
+  --color-text-secondary: 75 85 99;
+  --color-text-tertiary: 156 163 175;
+  --color-text-inverse: 255 255 255;
+  
+  /* Glass Effect */
+  --glass-background: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: rgba(0, 0, 0, 0.1);
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, rgb(99 102 241) 0%, rgb(168 85 247) 100%);
+  --gradient-background: linear-gradient(135deg, rgb(238 242 255 / 0.3) 0%, rgb(255 255 255) 50%, rgb(250 245 255 / 0.3) 100%);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Dark Theme Colors */
+.dark {
+  --color-background: 17 24 39;
+  --color-background-secondary: 31 41 55;
+  --color-background-tertiary: 55 65 81;
+  --color-surface: 31 41 55;
+  --color-surface-secondary: 55 65 81;
+  --color-border: 75 85 99;
+  --color-border-secondary: 107 114 128;
+  --color-text-primary: 243 244 246;
+  --color-text-secondary: 209 213 219;
+  --color-text-tertiary: 156 163 175;
+  --color-text-inverse: 17 24 39;
+  
+  /* Glass Effect */
+  --glass-background: rgba(31, 41, 55, 0.8);
+  --glass-border: rgba(75, 85, 99, 0.3);
+  --glass-shadow: rgba(0, 0, 0, 0.3);
+  
+  /* Gradients */
+  --gradient-background: linear-gradient(135deg, rgb(17 24 39 / 0.9) 0%, rgb(31 41 55) 50%, rgb(55 65 81 / 0.9) 100%);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Base Styles */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+body {
+  background: var(--gradient-background);
+  color: rgb(var(--color-text-primary));
+  min-height: 100vh;
+}
+
+/* Custom Utility Classes */
+@layer utilities {
+  .bg-theme-background {
+    background-color: rgb(var(--color-background));
+  }
+  
+  .bg-theme-surface {
+    background-color: rgb(var(--color-surface));
+  }
+  
+  .bg-theme-glass {
+    background: var(--glass-background);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+  }
+  
+  .text-theme-primary {
+    color: rgb(var(--color-text-primary));
+  }
+  
+  .text-theme-secondary {
+    color: rgb(var(--color-text-secondary));
+  }
+  
+  .text-theme-tertiary {
+    color: rgb(var(--color-text-tertiary));
+  }
+  
+  .border-theme {
+    border-color: rgb(var(--color-border));
+  }
+  
+  .border-theme-secondary {
+    border-color: rgb(var(--color-border-secondary));
+  }
+  
+  .shadow-theme-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .shadow-theme-md {
+    box-shadow: var(--shadow-md);
+  }
+  
+  .shadow-theme-lg {
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .shadow-theme-xl {
+    box-shadow: var(--shadow-xl);
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--color-background-secondary));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-border-secondary));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-text-tertiary));
+}
+
+/* Focus Styles */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50;
+}
+
+/* Animation Classes */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Code Block Styling */
+pre, code {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+/* Selection Styling */
+::selection {
+  background-color: rgb(99 102 241 / 0.2);
+  color: rgb(var(--color-text-primary));
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
