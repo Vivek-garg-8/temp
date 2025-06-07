@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSnippetStore } from '../../store/snippetStore';
 import { SnippetCard } from './SnippetCard';
+import { SnippetModal } from './SnippetModal';
 import { Plus, FileText } from 'lucide-react';
+import { Snippet } from '../../types';
 
 export const SnippetList = () => {
   const {
@@ -14,7 +16,11 @@ export const SnippetList = () => {
     sortBy,
     sortOrder,
     fetchSnippets,
+    deleteSnippet,
   } = useSnippetStore();
+
+  const [showSnippetModal, setShowSnippetModal] = useState(false);
+  const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
 
   useEffect(() => {
     fetchSnippets();
@@ -67,6 +73,32 @@ export const SnippetList = () => {
       }
     });
 
+  const handleEdit = (snippet: Snippet) => {
+    setEditingSnippet(snippet);
+    setShowSnippetModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this snippet?')) {
+      await deleteSnippet(id);
+    }
+  };
+
+  const handleShare = (snippet: Snippet) => {
+    // TODO: Implement share functionality
+    console.log('Share snippet:', snippet);
+  };
+
+  const handleCloseModal = () => {
+    setShowSnippetModal(false);
+    setEditingSnippet(null);
+  };
+
+  const handleNewSnippet = () => {
+    setEditingSnippet(null);
+    setShowSnippetModal(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -77,56 +109,68 @@ export const SnippetList = () => {
 
   if (filteredSnippets.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="mx-auto w-24 h-24 bg-gray-100/50 rounded-full flex items-center justify-center mb-4">
-          <FileText className="h-8 w-8 text-gray-400" />
+      <>
+        <div className="text-center py-12">
+          <div className="mx-auto w-24 h-24 bg-gray-100/50 rounded-full flex items-center justify-center mb-4">
+            <FileText className="h-8 w-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {searchQuery || selectedCategory || selectedCollection 
+              ? 'No snippets found' 
+              : 'No snippets yet'
+            }
+          </h3>
+          <p className="text-gray-500 mb-6">
+            {searchQuery || selectedCategory || selectedCollection
+              ? 'Try adjusting your search or filters'
+              : 'Create your first code snippet to get started'
+            }
+          </p>
+          <button 
+            onClick={handleNewSnippet}
+            className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create Snippet</span>
+          </button>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          {searchQuery || selectedCategory || selectedCollection 
-            ? 'No snippets found' 
-            : 'No snippets yet'
-          }
-        </h3>
-        <p className="text-gray-500 mb-6">
-          {searchQuery || selectedCategory || selectedCollection
-            ? 'Try adjusting your search or filters'
-            : 'Create your first code snippet to get started'
-          }
-        </p>
-        <button className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
-          <Plus className="h-4 w-4" />
-          <span>Create Snippet</span>
-        </button>
-      </div>
+
+        <SnippetModal
+          isOpen={showSnippetModal}
+          onClose={handleCloseModal}
+          snippet={editingSnippet}
+          mode={editingSnippet ? 'edit' : 'create'}
+        />
+      </>
     );
   }
 
   return (
-    <div className={`
-      ${viewMode === 'grid' 
-        ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' 
-        : 'space-y-4'
-      }
-    `}>
-      {filteredSnippets.map((snippet) => (
-        <SnippetCard
-          key={snippet.id}
-          snippet={snippet}
-          viewMode={viewMode}
-          onEdit={(snippet) => {
-            // TODO: Implement edit functionality
-            console.log('Edit snippet:', snippet);
-          }}
-          onDelete={(id) => {
-            // TODO: Implement delete functionality
-            console.log('Delete snippet:', id);
-          }}
-          onShare={(snippet) => {
-            // TODO: Implement share functionality
-            console.log('Share snippet:', snippet);
-          }}
-        />
-      ))}
-    </div>
+    <>
+      <div className={`
+        ${viewMode === 'grid' 
+          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' 
+          : 'space-y-4'
+        }
+      `}>
+        {filteredSnippets.map((snippet) => (
+          <SnippetCard
+            key={snippet.id}
+            snippet={snippet}
+            viewMode={viewMode}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onShare={handleShare}
+          />
+        ))}
+      </div>
+
+      <SnippetModal
+        isOpen={showSnippetModal}
+        onClose={handleCloseModal}
+        snippet={editingSnippet}
+        mode={editingSnippet ? 'edit' : 'create'}
+      />
+    </>
   );
 };
